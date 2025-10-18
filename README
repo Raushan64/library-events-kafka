@@ -67,7 +67,7 @@ How to send the message Asynchronously
 
 
 How to handle kafka-error
-Consumer: retry, recovery, scheduler
+Consumer: retry, recovery
 Retry:
 - producer send the the message to kafka-topic and consumer read those message from kafka-topic,
   and if any exception happen in consumer then retry call (means call to KafkaListener method) with specify invocations

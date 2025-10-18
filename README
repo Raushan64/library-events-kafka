@@ -1,0 +1,115 @@
+How to start zookeeper and kafka-broker
+1. Start Start Zookeeper
+> cd kafka_2.13-3.3.1/bin
+> ./zookeeper-server-start.sh ../config/zookeeper.properties
+
+2. Start Kafka Broker
+> cd kafka_2.13-3.3.1/bin
+> ./kafka-server-start.sh ../config/server.properties
+
+
+How to send the message from producer to kafka-topic and consumer read those message from kafka-topic and persist in DB
+Positive case:
+1. Create the record
+url: POST http://localhost:8080/v1/libraryevent
+payload: {
+             "libraryEventId": null,
+             "libraryEventType": "NEW",
+             "book": {
+                 "bookId": 456,
+                 "bookName": "Kafka Using Spring Boot",
+                 "bookAuthor": "Dilip"
+             }
+         }
+2. Update the record
+utl: PUT http://localhost:8080/v1/libraryevent
+payload: {
+             "libraryEventId": 1,
+             "libraryEventType": "UPDATE",
+             "book": {
+                 "bookId": 456,
+                 "bookName": "Kafka Using Spring Boot.2x",
+                 "bookAuthor": "Dilip"
+             }
+         }
+Negative case:
+1. Update the record with libraryEventId null value
+utl: PUT http://localhost:8080/v1/libraryevent
+payload: {
+             "libraryEventId": null,
+             "libraryEventType": "UPDATE",
+             "book": {
+                 "bookId": 456,
+                 "bookName": "Kafka Using Spring Boot.2x",
+                 "bookAuthor": "Dilip"
+             }
+         }
+2. Update the record with libraryEventType New
+utl: PUT http://localhost:8080/v1/libraryevent
+payload: {
+             "libraryEventId": 1,
+             "libraryEventType": "NEW",
+             "book": {
+                 "bookId": 456,
+                 "bookName": "Kafka Using Spring Boot.2x",
+                 "bookAuthor": "Dilip"
+             }
+         }
+
+
+
+How to send the message Asynchronously
+- once you call the send() then call to get() with specify time, even you can use only get() but in this case kafka use default time priod.
+  var sendResult = kafkaTemplate.send(topic, key, value)
+                               //.get()
+                               .get(3, TimeUnit.SECONDS);
+
+
+
+How to handle kafka-error
+Consumer: retry, recovery, scheduler
+Retry:
+- producer send the the message to kafka-topic and consumer read those message from kafka-topic,
+  and if any exception happen in consumer then retry call (means call to KafkaListener method) with specify invocations
+
+case1: we are sending null libraryEventId which is unexpected to "IllegalArgumentException", run the below test case to validate the retry
+int-test-case: publishModifyLibraryEvent_Null_LibraryEventId
+
+Recovery:
+- producer send the the message to kafka-topic and consumer read those message from kafka-topic,
+  and if any exception happen in consumer then same message send to kafka-topic and again consumer read this message until invocations has exhausted
+
+case1: we are sending 999 libraryEventId which is unexpected to "RecoverableDataAccessException", run the below test case to validate the recovery
+int-test-case: publishModifyLibraryEvent_Null_LibraryEventId
+
+
+
+Kafka commands:
+1. Install Kafka
+> brew services start kafka
+
+2. start Start Zookeeper
+> cd kafka_2.13-3.3.1/bin
+> ./zookeeper-server-start.sh ../config/zookeeper.properties
+
+3. start Kafka Broker
+> cd kafka_2.13-3.3.1/bin
+> ./kafka-server-start.sh ../config/server.properties
+
+4. start the kafka-producer to send the message to kafka-topic
+> bin/kafka-console-producer.sh --broker-list localhost:9092 --topic <topic-name>
+
+5. create the kafka-topic from producer-console
+> bin/kafka-topics.sh --describe --topic <topic-name> --bootstrap-server localhost:9092
+
+6. See the created kafka-topic list, you can see in producer/consumer console
+> bin/kafka-topics.sh --list --bootstrap-server localhost:9092
+
+7. start the kafka-consumer to see the message from kafka-topic
+> bin/kafka-console-consumer.sh --topic <topic-name> --from-beginning --bootstrap-server localhost:9092
+This is my first event
+This is my second event
+
+
+Reference: udemy
+https://www.udemy.com/course/apache-kafka-for-developers-using-springboot/learn/lecture/38066290?start=165#overview

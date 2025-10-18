@@ -1,0 +1,153 @@
+Kafka message:
+   - message sent from producer has two properties
+       - Kay(optional)
+       - Value
+   - Once message has sent from producer then there is one layer called Partitioner which check the key of each message, if key is not persent then sent the message across all partition using round-robin approch, if kay is persent and hash value is same then send the message to only one partition, if hash value is different the send the message to across all partition.
+
+Zookeeper:
+   - It trace the helth of broker to serve client request.
+   - If one broker is falied then Zookeeper is notify the broker faluare and and it assign the next follower broker as leader.
+
+
+Consumer Offsets:
+   - Consumer has 3 option to read the message
+          - from begining : Consumer starts reading message from the begning
+          - latest: Consumer starts reading from the end of the log — i.e., only new messages arriving after the consumer starts.
+                         Suppose your Kafka topic has 1000 messages.
+                         You create a new consumer group and set it to latest.
+                         The consumer will ignore the first 1000 messages and start consuming from message 1001 onward
+          - spesific offset: Consumer starts reading message for spesific given offsets
+   - Case: if consumer got crashed/down and producer keep seding the message after some time consumer is up then how consumer know which where I was left reading, in general consumer offsets store in internal topic call as "__consumer_offsets" and bookmarked, from here consumer get to know that I need to pic this offset to read the message from partition.
+
+   Note: Consumer read the message begining from partition one by one and once read all message from partition then consumer commit the all offsets to "__consumer_offsets" topic with groupID, Kafka default using the BATCH COMMIT approch to commit the message into "__consumer_offsets" topic.
+
+Consumer Group:
+   - when producer send the message fastaly and if we use one consumer with group.id = group1 then in this case cosumer will lage for consuming the message that y consumer group introduced, let see if we use 3 consumer with same groupId then in this case consumer will not lage for consumming the meessage because this time 3 consumer cosuming the message at a time parallelly(Paralalism)
+
+   Note: Who manage the consumer group - kafka Broker
+         GroupId is unique.
+
+Commit Log:
+   - each pertition having own log.
+     log.dirs=/temp/kafka-logs (File System)
+                        0000000000.log
+Retention Policy:
+  - It determines how long message is retained.
+  - configure the rentention properties "log.retention.hours=168" in server.properties
+  - default retention priod is 168hr(7Days)
+
+Kafaka is distributed streaming system.
+charecterastics of Distributed system:
+   - Avalability and Fault Tolerance: If one system(MS) is down, still will not impact overall avalability of the systems.
+   - Reliable Work Distribution: Request recieved from client is equily distributed in abailable system(MS).
+   - Easily scalable: Adding new system in exishting set up is really easy.
+   - Handling concureccy is fairly easy
+
+How kafka distribute the client request
+   - Once producer send the message then "Partitioner" decide which broker-parttition need to send this message.
+
+How topic are distributed
+  - Suppose we are having 3 broker in kafka cluster and Once you create the kafka topic then 3 partition(partitin-0, partitin-0, partitin-0) equaly distributed them and kafka topic are replicated across all 3 broker, i.e what ever message present in broker-1 same present in broker-2/broker-3.
+          Broker-1 -> partitin-0
+          broker-2 -> partitin-1
+          Broker-3 -> partitin-2
+
+Replication:
+  - Leader Election: Kafka’s controller broker chooses one broker as the leader for each partition — e.g., B1.
+  - Producers Write to the Leader: Producers always send messages to the leader broker of that partition, Example: Producer → B1 (leader)
+  - Followers Pull Data from Leader: Other brokers (B2 and B3) are followers, They fetch messages from the leader asynchronously and append them to their local log to keep replicas in sync, If a follower lags behind too much, it’s removed from ISR(in-sync-replicas) temporarily.
+  - If the leader broker crashes: The controller broker elects a new leader from the ISR list, Followers that were in-sync take over leadership, Producers and consumers automatically detect this via metadata updates and switch to the new leader, This allows Kafka to continue working without downtime.
+  Note: For ISR, number of broker must be more than 1
+
+  Liberary Inventory Architecture:
+
+   API -> Kafka Producer -> Liberary Events(Kafka Cluster) -> kafka producer -> H2(In-memory )
+
+KafkaTemplate:
+  - It is class that part of spring to produce the messages into the kafka topic.
+
+Configure KafkaTemplate: To configure the KafkaTemplate we need to provide madatory properties
+      bootstrap-servers: localhost:9092,localhost:9093,localhost:9094
+      key-serializer: org.apache.kafka.common.serialization.IntegerSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+
+How send message happen Asynchronously in the background
+-----------------------------------------------------------
+var completableFuture = kafkaTemplate.send(topic, key, value)
+1. Blocling call:
+When you send a message for the first time, the Kafka producer needs to fetch metadata about:
+- The topic (e.g., library-events)
+- Number of partitions
+- Which broker is the leader for each partition
+So before actually sending the message, the producer makes a blocking network call to the Kafka cluster to retrieve this information, This happens internally to decide where to send the record.This is usually very fast and happens once per topic (metadata is cached afterwards). But the first send() may take a bit longer because of this blocking call.
+2. Then It happen the send message
+
+How to make a Synchronous call
+--------------------------------------
+ - kafkaTemplate.send(key, value).get(1, TimeUnit.SECONDS);
+ - First Blocking call will happen then block the call untill send() message happen.
+
+AdminClientConfig:
+---------------------
+When you start a Spring Boot Kafka app, Spring automatically creates a Kafka AdminClient bean if it detects spring.kafka.bootstrap-servers in your application.yml/properties.
+
+Purpose -
+Connects to the Kafka cluster not to send messages, but to manage cluster metadata and administrative tasks such as:
+Checking if the cluster is reachable
+Auto-creating topics (if configured with spring.kafka.admin.auto-create=true)
+Validating topic existence
+Reading metadata about topics, brokers, partitions
+
+This is why you see something like:
+AdminClientConfig values:
+ bootstrap.servers = [localhost:9092]
+ client.id = library-events-producer-admin-0
+ default.api.timeout.ms = 60000
+ ...
+
+ProducerConfig
+-----------------
+When you call something like:
+kafkaTemplate.send(topic, key, value);
+
+Spring Kafka internally initializes a KafkaProducer using the ProducerConfig.
+That’s when you see:
+ProducerConfig values:
+ bootstrap.servers = [localhost:9092]
+ acks = 1
+ key.serializer = org.apache.kafka.common.serialization.StringSerializer
+ value.serializer = org.springframework.kafka.support.serializer.JsonSerializer
+ linger.ms = 0
+ ...
+
+Purpose -
+Actually sends records to Kafka brokers.
+Handles serialization of your key/value.
+Uses batching, compression, retries, acknowledgments, etc.
+
+
+Kafka Producer - important confuguration
+acts:
+- acts = 0, 1, -1(all)
+- acts = 0 -> granteed message is written to leader
+- acts = -1 -> granteed message is written to leader and to all replicas(default)
+- acts = 0 -> no grantees
+
+Consumer-Group:
+Group-Co-ordinator: It is one layer and check the consumer group-id, if it found same group-id then it distribute the partitions to each consumer and it Rebalence.
+
+
+Error-Hadling:
+Retry: Consumer
+  - If any exception occured then retry will invoke the twice or trice depend on your retry invocation configuration, default retry invocation is 10.
+  - You can explecitly define the retry fail call (FixedBackOff, ExponentialBackOffWithMaxRetries...)
+
+Recovery: Consumer
+  - If any exception occured then send the same message to the retry-topic and consumer again read those message.
+  - Repocess the fails message again.
+       Approch-1 : Recovery purpose
+         Type-1: Publish the fail message to a Retry-Topic
+         Type-2: Saved the fails message in DB and retry with sheduler
+       Approch-2 : Tracking purpose
+          Type-1: Publish the fails message in to DeadLetter-Topic for tracking purpose.
+          Type-2: Saves fails message into DB for tracking purpose.

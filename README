@@ -79,7 +79,7 @@ Recovery:
 - producer send the the message to kafka-topic and consumer read those message from kafka-topic,
   and if any exception happen in consumer then same message send to kafka-topic and again consumer read this message until invocations has exhausted
 
-case1: we are sending 999 libraryEventId which is unexpected to "RecoverableDataAccessException", run the below test case to validate the recovery
+case1: we are sending 999 libraryEventId which is unexpected to "RecoverableDataAccessException", comment fixedBackOff and uncomment publishingRecoverer from LibraryEventConsumerConfig.java then run the below test case to validate the recovery
 int-test-case: publishModifyLibraryEvent_Null_LibraryEventId
 
 Note: Created the bean of ConcurrentKafkaListenerContainerFactory and from it used CommonErrorHandler
